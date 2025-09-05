@@ -1,6 +1,6 @@
 # opengrep-nvim
 
-A simple Neovim plugin that integrates the `opengrep` tool, specifically designed for use with `lazy.nvim`.
+A simple Neovim plugin that integrates the [Opengrep](https://www.opengrep.dev/) tool, specifically designed for use with `lazy.nvim`.
 
 ## Features
 
@@ -29,7 +29,7 @@ Restart Neovim. LazyVim will automatically clone the repository and load the plu
 
 ### Automatic Notifications
 
-Just work as you normally would. When you save a file that matches one of the specified patterns (`lua`, `py`, `sh`, `c`, `cpp`, `js`, `ts`, `html`, `css`, `h`, `hpp`, `c++`), a notification will pop up in the corner of your screen indicating whether issues were found.
+Just work as you normally would. When you save a file that matches one of the specified patterns (`lua`, `py`, `sh`, `c`, `cpp`, `js`, `ts`, `html`, `css`, `h`, `hpp`, `c++`, `java`), a notification will pop up in the corner of your screen indicating whether issues were found.
 
 ### Manual Quickfix Search
 
