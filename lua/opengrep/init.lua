@@ -107,6 +107,7 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 		"*.h",
 		"*.hpp",
 		"*.c++",
+		"*.java",
 	},
 	callback = function()
 		M.run_and_notify()
