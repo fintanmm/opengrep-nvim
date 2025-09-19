@@ -11,7 +11,7 @@ A simple Neovim plugin that integrates the [Opengrep](https://www.opengrep.dev/)
 ## Prerequisites
 
 - Neovim 0.7+ (uses `vim.system` when available, falls back to `jobstart`)
-- The `opengrep` binary installed and available in your system `PATH`.
+- The Opengrep CLI binary is named `opengrep` and must be on your system `PATH`.
   - If not found, the plugin will show a one-time notification. You can also set a custom path via `setup{ cmd = "/path/to/opengrep" }`.
 
 ## Installation
@@ -27,7 +27,7 @@ return {
     config = function()
       require('opengrep').setup({
         -- Optional configuration (shown with defaults):
-        cmd = 'opengrep',      -- path to opengrep binary
+        cmd = 'opengrep',      -- name/path of opengrep binary (defaults to 'opengrep' on PATH)
         cmd_args = {},         -- extra args passed to every call
         run_on_save = true,    -- enable BufWritePost checks
         patterns = {           -- which files trigger run_on_save
@@ -80,4 +80,4 @@ After the command runs, the quickfix list is populated and (by default) opened i
 - All external calls execute asynchronously via `vim.system` on Neovim 0.10+, with a `jobstart` fallback otherwise.
 - Non-zero exit codes without stdout are treated as errors; empty stdout with zero exit code is treated as "no results".
 - Quickfix parsing handles `file:lnum:col:text` and falls back to a colon-split heuristic for resilience.
-- If `opengrep` is not found, a one-time notification explains how to install or configure a custom `cmd` path.
+- If the `opengrep` binary is not found on PATH, a one-time notification explains how to install it or configure a custom `cmd` path (usually unnecessary).
