@@ -286,6 +286,15 @@ function M.setup(opts)
 	vim.api.nvim_create_user_command("OGrep", function(opts_)
 		M.run_and_qf(opts_.fargs)
 	end, { nargs = "+", complete = "dir" })
+
+	-- Back-compat alias for old command name
+	pcall(vim.api.nvim_del_user_command, "OpengrepQf")
+	vim.api.nvim_create_user_command("OpengrepQf", function(opts_)
+		vim.schedule(function()
+			vim.notify("Deprecated: use :OGrep instead of :OpengrepQf", M.config.info_notify_level, { title = M.config.notify_title })
+		end)
+		M.run_and_qf(opts_.fargs)
+	end, { nargs = "+", complete = "dir" })
 end
 
 -- Back-compat: initialize with defaults so it works out-of-the-box
