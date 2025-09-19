@@ -5,7 +5,7 @@ A simple Neovim plugin that integrates the [Opengrep](https://www.opengrep.dev/)
 ## Features
 
 - **Automatic Checks on Save (async)**: Runs `opengrep` on the current file after you save it (non-blocking) and optionally notifies you if issues are found.
-- **Quickfix Integration**: `:OpengrepQf` to run a manual search and populate the quickfix list with results. Accepts a required search pattern and optional directory.
+- **Quickfix Integration**: `:OGrep` to run a manual search and populate the quickfix list with results. Accepts a required search pattern and optional directory.
 - **Configurable**: Toggle run-on-save, patterns, notification verbosity, quickfix auto-open, binary path and extra args.
 
 ## Prerequisites
@@ -56,7 +56,7 @@ When `run_on_save` is enabled, saving a file that matches one of the configured 
 Run a manual search and populate the quickfix list:
 
 ```
-:OpengrepQf {pattern} [directory]
+:OGrep {pattern} [directory]
 ```
 
 - `{pattern}`: Required search pattern.
@@ -65,8 +65,8 @@ Run a manual search and populate the quickfix list:
 Examples:
 
 ```
-:OpengrepQf "my_function"
-:OpengrepQf TODO ~/my-project
+:OGrep "my_function"
+:OGrep TODO ~/my-project
 ```
 
 After the command runs, the quickfix list is populated and (by default) opened if there are results.

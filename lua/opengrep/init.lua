@@ -190,7 +190,7 @@ M.run_and_qf = function(args)
 	end
 
 	if not pattern or pattern == "" then
-		vim.notify("Usage: :OpengrepQf {pattern} [directory]", M.config.info_notify_level, { title = M.config.notify_title })
+		vim.notify("Usage: :OGrep {pattern} [directory]", M.config.info_notify_level, { title = M.config.notify_title })
 		return
 	end
 
@@ -282,8 +282,8 @@ function M.setup(opts)
 	end
 
 	-- Refresh user command to use our latest config
-	pcall(vim.api.nvim_del_user_command, "OpengrepQf")
-	vim.api.nvim_create_user_command("OpengrepQf", function(opts_)
+	pcall(vim.api.nvim_del_user_command, "OGrep")
+	vim.api.nvim_create_user_command("OGrep", function(opts_)
 		M.run_and_qf(opts_.fargs)
 	end, { nargs = "+", complete = "dir" })
 end
