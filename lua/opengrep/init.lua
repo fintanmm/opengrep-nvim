@@ -29,6 +29,9 @@ local defaults = {
 	issue_notify_level = vim.log.levels.WARN,
 	info_notify_level = vim.log.levels.INFO,
 	open_qf_on_results = true,
+	-- Rules: string or table. Each rule entry is passed to opengrep as `-f <rule>`.
+	-- Example: rules = "rules"  or rules = { "rules", "more-rules.yml" }
+	rules = nil,
 }
 
 local augroup_id
@@ -109,6 +112,29 @@ local function ensure_available()
 	return true
 end
 
+-- Helper to append configured rules to the command as repeated `-f <rule>` flags.
+local function append_rules(cmd)
+	local rules = M.config and M.config.rules or nil
+	if not rules then
+		return
+	end
+	if type(rules) == "string" then
+		if rules ~= "" then
+			table.insert(cmd, "-f")
+			table.insert(cmd, rules)
+		end
+		return
+	end
+	if type(rules) == "table" then
+		for _, r in ipairs(rules) do
+			if type(r) == "string" and r ~= "" then
+				table.insert(cmd, "-f")
+				table.insert(cmd, r)
+			end
+		end
+	end
+end
+
 --- Function to run opengrep on the current buffer and display a notification.
 M.run_and_notify = function()
 	if not ensure_available() then
@@ -131,6 +157,7 @@ M.run_and_notify = function()
 	for _, a in ipairs(M.config.cmd_args) do
 		table.insert(cmd, a)
 	end
+	append_rules(cmd)
 	table.insert(cmd, filename)
 
 	local function json_decode(str)
@@ -280,6 +307,7 @@ M.run_and_qf = function(args)
 	for _, a in ipairs(M.config.cmd_args) do
 		table.insert(cmd, a)
 	end
+	append_rules(cmd)
 	table.insert(cmd, directory)
 
 	local function json_decode(str)

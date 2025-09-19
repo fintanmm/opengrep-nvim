@@ -64,6 +64,19 @@ Run a directory scan and populate the quickfix list:
 
 The plugin runs `opengrep scan --quiet` and reads SARIF output to populate the quickfix list. Use `setup{ cmd_args = { ... } }` to pass additional flags such as `--include=PATTERN` or rules files.
 
+You can also specify rules directly via the plugin config using the `rules` option. This accepts a string (single rules file) or a table (multiple files). Each entry is passed to `opengrep` as a `-f <rule>` flag, for example:
+
+```lua
+require('opengrep').setup({
+  rules = 'rules',
+})
+
+-- or
+require('opengrep').setup({
+  rules = { 'rules', 'more-rules.yml' },
+})
+```
+
 Examples:
 
 ```
