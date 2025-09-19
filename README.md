@@ -5,12 +5,12 @@ A simple Neovim plugin that integrates the [Opengrep](https://www.opengrep.dev/)
 ## Features
 
 - **Automatic Checks on Save (async)**: Runs `opengrep` on the current file after you save it (non-blocking) and optionally notifies you if issues are found.
-- **Quickfix Integration**: `:OpengrepQf` to run a manual search and populate the quickfix list with results.
+- **Quickfix Integration**: `:OpengrepQf` to run a manual search and populate the quickfix list with results. Accepts a required search pattern and optional directory.
 - **Configurable**: Toggle run-on-save, patterns, notification verbosity, quickfix auto-open, binary path and extra args.
 
 ## Prerequisites
 
-- Neovim 0.7+
+- Neovim 0.7+ (uses `vim.system` when available, falls back to `jobstart`)
 - The `opengrep` binary installed and available in your system `PATH`.
   - If not found, the plugin will show a one-time notification. You can also set a custom path via `setup{ cmd = "/path/to/opengrep" }`.
 
@@ -32,9 +32,11 @@ return {
         patterns = {           -- which files trigger run_on_save
           '*.lua','*.py','*.sh','*.c','*.cpp','*.js','*.ts','*.html','*.css','*.h','*.hpp','*.c++','*.java'
         },
-        notify_on_no_issues = false, -- notify when file is clean
-        notify_title = 'Opengrep',   -- notification title
-        open_qf_on_results = true,   -- open quickfix if matches found
+        notify_on_no_issues = false,       -- notify when file is clean
+        notify_title = 'Opengrep',         -- notification title
+        issue_notify_level = vim.log.levels.WARN, -- severity for issue notifications
+        info_notify_level = vim.log.levels.INFO,  -- severity for info/clean messages
+        open_qf_on_results = true,         -- open quickfix if matches found
       })
     end,
   },
@@ -74,6 +76,7 @@ After the command runs, the quickfix list is populated and (by default) opened i
 
 ## Notes
 
-- All external calls are executed asynchronously using `vim.system` when available (Neovim 0.10+), with a `jobstart` fallback on older versions.
-- Errors and non-zero exit codes are surfaced clearly; no-match output is treated as "no results" rather than an error.
-- Quickfix entries are parsed robustly from lines of the form `file:lnum:col:text`. If your environment emits a different format, open an issue or adjust parsing.
+- All external calls execute asynchronously via `vim.system` on Neovim 0.10+, with a `jobstart` fallback otherwise.
+- Non-zero exit codes without stdout are treated as errors; empty stdout with zero exit code is treated as "no results".
+- Quickfix parsing handles `file:lnum:col:text` and falls back to a colon-split heuristic for resilience.
+- If `opengrep` is not found, a one-time notification explains how to install or configure a custom `cmd` path.
