@@ -23,6 +23,7 @@ return {
   -- other plugins ...
   {
     'fintanmm/opengrep-nvim',
+    cmd = { 'OGrep', 'OpengrepQf' },
     config = function()
       require('opengrep').setup({
         -- Optional configuration (shown with defaults):
