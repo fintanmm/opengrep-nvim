@@ -81,3 +81,11 @@ After the command runs, the quickfix list is populated and (by default) opened i
 - Non-zero exit codes without stdout are treated as errors; empty stdout with zero exit code is treated as "no results".
 - Quickfix parsing handles `file:lnum:col:text` and falls back to a colon-split heuristic for resilience.
 - If the `opengrep` binary is not found on PATH, a one-time notification explains how to install it or configure a custom `cmd` path (usually unnecessary).
+
+## Versioning
+
+- Scheme: Semantic Versioning (SemVer) 2.0.0 — `MAJOR.MINOR.PATCH`.
+- Tags: Releases use git tags in the form `vX.Y.Z`.
+- Bumps: MAJOR for breaking changes, MINOR for backward-compatible features, PATCH for fixes.
+- Conventions: Conventional Commits are used; `feat!` or `BREAKING CHANGE` denotes a MAJOR bump.
+
