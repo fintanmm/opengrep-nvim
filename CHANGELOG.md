@@ -11,9 +11,12 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 - `lazy.nvim` command triggers in README to avoid E492 on first use
 - Semantic Versioning policy documented in README
 - Keep a Changelog file and GitHub Actions workflow to publish releases on tags
+- SARIF-based integration: run `opengrep scan --quiet` and parse SARIF for notifications and quickfix results
 
 ### Changed
-- README: clarify binary name is `opengrep` on PATH; improve notes on async execution, quickfix parsing, and notify-level options
+- `:OGrep` now scans a directory (`:OGrep [directory]`) instead of taking a pattern; it populates quickfix from SARIF results
+- Notifications for save-time checks show count and first finding using SARIF
+- README updated for SARIF, `--quiet`, and new `:OGrep [directory]` signature
 
 ## [0.1.0] - 2025-09-19
 

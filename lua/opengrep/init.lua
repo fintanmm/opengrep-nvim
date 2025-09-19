@@ -123,54 +123,139 @@ M.run_and_notify = function()
 		return
 	end
 
-	-- Build command
-	local cmd = { M.config.cmd }
+	-- Create temp SARIF output file
+	local sarif_path = vim.fn.tempname() .. ".sarif.json"
+
+	-- Build command: opengrep scan --quiet --sarif-output=<file> <target>
+	local cmd = { M.config.cmd, "scan", "--quiet", "--sarif-output=" .. sarif_path }
 	for _, a in ipairs(M.config.cmd_args) do
 		table.insert(cmd, a)
 	end
 	table.insert(cmd, filename)
 
-	run_cmd(cmd, function(code, stdout, stderr)
-		local out = vim.trim(stdout or "")
-		local err = vim.trim(stderr or "")
+	local function json_decode(str)
+		if vim.json and vim.json.decode then
+			return pcall(vim.json.decode, str)
+		end
+		return pcall(vim.fn.json_decode, str)
+	end
 
-		if code ~= 0 and out == "" then
-			local msg = err ~= "" and err or ("Command failed: %s"):format(table.concat(cmd, " "))
+	local function parse_sarif_findings(sarif_tbl)
+		local items = {}
+		if type(sarif_tbl) ~= "table" or type(sarif_tbl.runs) ~= "table" then
+			return items
+		end
+
+		local base_dir_abs
+		if filename and filename ~= "" then
+			base_dir_abs = vim.fn.fnamemodify(filename, ":h:p")
+		elseif directory and directory ~= "" then
+			base_dir_abs = vim.fn.fnamemodify(directory, ":p")
+		else
+			base_dir_abs = vim.fn.getcwd()
+		end
+		local function is_abs_path(p)
+			return type(p) == "string" and (p:match("^/") or p:match("^%a:[/\\]"))
+		end
+		local function to_path(uri)
+			if type(uri) ~= "string" or uri == "" then
+				return nil
+			end
+			if uri:match("^file:") then
+				if vim.uri_to_fname then
+					local ok, p = pcall(vim.uri_to_fname, uri)
+					if ok and p and p ~= "" then
+						return p
+					end
+				end
+				uri = uri:gsub("^file://", "")
+			end
+			if is_abs_path(uri) then
+				return uri
+			end
+			return vim.fn.fnamemodify(base_dir_abs .. "/" .. uri, ":p")
+		end
+
+		for _, run in ipairs(sarif_tbl.runs) do
+			local results = run.results or {}
+			for _, res in ipairs(results) do
+				local message = ""
+				if type(res.message) == "table" and type(res.message.text) == "string" then
+					message = res.message.text
+				elseif type(res.message) == "string" then
+					message = res.message
+				end
+				local ruleId = res.ruleId or ""
+				local text = ruleId ~= "" and (message .. " [" .. ruleId .. "]") or message
+				local locs = res.locations or {}
+				for _, loc in ipairs(locs) do
+					local pl = loc.physicalLocation or {}
+					local art = pl.artifactLocation or {}
+					local uri = art.uri or ""
+					local region = pl.region or {}
+					local lnum = tonumber(region.startLine or region.endLine or 1) or 1
+					local col = tonumber(region.startColumn or region.column or 1) or 1
+					local fname = to_path(uri)
+					if fname and fname ~= "" then
+						table.insert(items, { filename = fname, lnum = lnum, col = col, text = text })
+					end
+				end
+			end
+		end
+		return items
+	end
+
+	run_cmd(cmd, function(code, stdout, stderr)
+		local err = vim.trim(stderr or "")
+		local sarif_content = nil
+		local ok_read, lines = pcall(vim.fn.readfile, sarif_path)
+		if ok_read and type(lines) == "table" then
+			sarif_content = table.concat(lines, "\n")
+		end
+		pcall(os.remove, sarif_path)
+
+		if not sarif_content or sarif_content == "" then
+			if code ~= 0 then
+				vim.schedule(function()
+					vim.notify(err ~= "" and err or ("Command failed: %s"):format(table.concat(cmd, " ")),
+						vim.log.levels.ERROR, { title = M.config.notify_title })
+				end)
+			else
+				if M.config.notify_on_no_issues then
+					vim.schedule(function()
+						vim.notify(("No issues found in %s"):format(basename(filename)), M.config.info_notify_level,
+							{ title = M.config.notify_title })
+					end)
+				end
+			end
+			return
+		end
+
+		local ok_json, sarif_tbl = json_decode(sarif_content)
+		if not ok_json or type(sarif_tbl) ~= "table" then
 			vim.schedule(function()
-				vim.notify(msg, vim.log.levels.ERROR, { title = M.config.notify_title })
+				vim.notify("Failed to parse SARIF output", vim.log.levels.ERROR, { title = M.config.notify_title })
 			end)
 			return
 		end
 
-		if out == "" then
+		local items = parse_sarif_findings(sarif_tbl)
+		local count = #items
+		if count == 0 then
 			if M.config.notify_on_no_issues then
 				vim.schedule(function()
-					vim.notify(
-						("No issues found in %s"):format(basename(filename)),
-						M.config.info_notify_level,
-						{ title = M.config.notify_title }
-					)
+					vim.notify(("No issues found in %s"):format(basename(filename)), M.config.info_notify_level,
+						{ title = M.config.notify_title })
 				end)
 			end
 			return
 		end
 
-		local lines = vim.split(out, "\n", { trimempty = true })
-		local issue_count = #lines
-		local first_line = lines[1] or ""
-
 		vim.schedule(function()
-			vim.notify(
-				string.format(
-					"Found %d issue%s in %s. First: %s",
-					issue_count,
-					issue_count ~= 1 and "s" or "",
-					basename(filename),
-					first_line
-				),
-				M.config.issue_notify_level,
-				{ title = M.config.notify_title }
-			)
+			local first = items[1]
+			local first_txt = first and first.text or ""
+			vim.notify(string.format("Found %d issue%s in %s. First: %s", count, count ~= 1 and "s" or "",
+				basename(filename), first_txt), M.config.issue_notify_level, { title = M.config.notify_title })
 		end)
 	end)
 end
@@ -182,70 +267,115 @@ M.run_and_qf = function(args)
 		return
 	end
 
-	local pattern = args and args[1] or nil
-	local directory = (args and args[2]) or vim.fn.getcwd()
-	-- Expand ~ in directory if present
+	local directory = (args and args[1]) or vim.fn.getcwd()
 	if directory and directory:sub(1, 1) == "~" then
 		directory = vim.fn.expand(directory)
 	end
 
-	if not pattern or pattern == "" then
-		vim.notify("Usage: :OGrep {pattern} [directory]", M.config.info_notify_level, { title = M.config.notify_title })
-		return
-	end
+	-- Create temp SARIF output file
+	local sarif_path = vim.fn.tempname() .. ".sarif.json"
 
-	local cmd = { M.config.cmd }
+	-- Build command: opengrep scan --quiet --sarif-output=<file> <dir>
+	local cmd = { M.config.cmd, "scan", "--quiet", "--sarif-output=" .. sarif_path }
 	for _, a in ipairs(M.config.cmd_args) do
 		table.insert(cmd, a)
 	end
-	table.insert(cmd, pattern)
 	table.insert(cmd, directory)
 
-	run_cmd(cmd, function(code, stdout, stderr)
-		local out = vim.trim(stdout or "")
-		local err = vim.trim(stderr or "")
+	local function json_decode(str)
+		if vim.json and vim.json.decode then
+			return pcall(vim.json.decode, str)
+		end
+		return pcall(vim.fn.json_decode, str)
+	end
 
-		if code ~= 0 and out == "" then
-			local msg = err ~= "" and err or ("Command failed: %s"):format(table.concat(cmd, " "))
-			vim.notify(msg, vim.log.levels.ERROR, { title = M.config.notify_title })
-			return
+	local function parse_sarif_findings(sarif_tbl)
+		local items = {}
+		if type(sarif_tbl) ~= "table" or type(sarif_tbl.runs) ~= "table" then
+			return items
 		end
 
-		local lines = vim.split(out, "\n", { trimempty = true })
-		local qf_list = {}
+		local base_dir_abs
+		if filename and filename ~= "" then
+			base_dir_abs = vim.fn.fnamemodify(filename, ":h:p")
+		elseif directory and directory ~= "" then
+			base_dir_abs = vim.fn.fnamemodify(directory, ":p")
+		else
+			base_dir_abs = vim.fn.getcwd()
+		end
+		local function is_abs_path(p)
+			return type(p) == "string" and (p:match("^/") or p:match("^%a:[/\\]"))
+		end
+		local function to_path(uri)
+			if type(uri) ~= "string" or uri == "" then
+				return nil
+			end
+			if uri:match("^file:") then
+				if vim.uri_to_fname then
+					local ok, p = pcall(vim.uri_to_fname, uri)
+					if ok and p and p ~= "" then
+						return p
+					end
+				end
+				uri = uri:gsub("^file://", "")
+			end
+			if is_abs_path(uri) then
+				return uri
+			end
+			return vim.fn.fnamemodify(base_dir_abs .. "/" .. uri, ":p")
+		end
 
-		for _, line in ipairs(lines) do
-			if line ~= "" then
-				-- Try to parse lines like: /path/file:lnum:col:text (filename may contain colons on Windows)
-				local fname, lnum, col, text = line:match("^(.+):(%d+):(%d+):(.*)$")
-				if fname and lnum and col then
-					table.insert(qf_list, {
-						filename = fname,
-						lnum = tonumber(lnum),
-						col = tonumber(col) or 1,
-						text = text or "",
-					})
-				else
-					local parts = vim.split(line, ":", { plain = true })
-					if #parts >= 3 then
-						local filename2 = parts[1]
-						local lnum2 = tonumber(parts[2])
-						local col2 = tonumber(parts[3]) or 1
-						local text2 = table.concat(parts, ":", 4)
-						if filename2 and lnum2 then
-							table.insert(qf_list, {
-								filename = filename2,
-								lnum = lnum2,
-								col = col2,
-								text = text2,
-							})
-						end
+		for _, run in ipairs(sarif_tbl.runs) do
+			local results = run.results or {}
+			for _, res in ipairs(results) do
+				local message = ""
+				if type(res.message) == "table" and type(res.message.text) == "string" then
+					message = res.message.text
+				elseif type(res.message) == "string" then
+					message = res.message
+				end
+				local ruleId = res.ruleId or ""
+				local text = ruleId ~= "" and (message .. " [" .. ruleId .. "]") or message
+				local locs = res.locations or {}
+				for _, loc in ipairs(locs) do
+					local pl = loc.physicalLocation or {}
+					local art = pl.artifactLocation or {}
+					local uri = art.uri or ""
+					local region = pl.region or {}
+					local lnum = tonumber(region.startLine or region.endLine or 1) or 1
+					local col = tonumber(region.startColumn or region.column or 1) or 1
+					local fname = to_path(uri)
+					if fname and fname ~= "" then
+						table.insert(items, { filename = fname, lnum = lnum, col = col, text = text })
 					end
 				end
 			end
 		end
+		return items
+	end
 
-		local title = string.format('Opengrep: "%s" in %s', pattern, directory)
+	run_cmd(cmd, function(code, stdout, stderr)
+		local err = vim.trim(stderr or "")
+		local sarif_content = nil
+		local ok_read, lines = pcall(vim.fn.readfile, sarif_path)
+		if ok_read and type(lines) == "table" then
+			sarif_content = table.concat(lines, "\n")
+		end
+		pcall(os.remove, sarif_path)
+
+		if code ~= 0 and (not sarif_content or sarif_content == "") then
+			vim.notify(err ~= "" and err or ("Command failed: %s"):format(table.concat(cmd, " ")), vim.log.levels.ERROR, { title = M.config.notify_title })
+			return
+		end
+
+		local ok_json, sarif_tbl = json_decode(sarif_content or "{}")
+		if not ok_json or type(sarif_tbl) ~= "table" then
+			vim.notify("Failed to parse SARIF output", vim.log.levels.ERROR, { title = M.config.notify_title })
+			return
+		end
+
+		local qf_list = parse_sarif_findings(sarif_tbl)
+		local title = string.format('Opengrep: scan in %s', directory)
 		vim.schedule(function()
 			vim.fn.setqflist({}, 'r', { title = title, items = qf_list })
 			if #qf_list > 0 then
@@ -254,9 +384,9 @@ M.run_and_qf = function(args)
 				if M.config.open_qf_on_results and not is_open then
 					vim.cmd("copen")
 				end
-				vim.notify(#qf_list .. " matches found in quickfix list.", M.config.info_notify_level, { title = M.config.notify_title })
+				vim.notify(#qf_list .. " findings added to quickfix.", M.config.info_notify_level, { title = M.config.notify_title })
 			else
-				vim.notify("No matches found.", M.config.info_notify_level, { title = M.config.notify_title })
+				vim.notify("No findings.", M.config.info_notify_level, { title = M.config.notify_title })
 			end
 		end)
 	end)
@@ -285,7 +415,7 @@ function M.setup(opts)
 	pcall(vim.api.nvim_del_user_command, "OGrep")
 	vim.api.nvim_create_user_command("OGrep", function(opts_)
 		M.run_and_qf(opts_.fargs)
-	end, { nargs = "+", complete = "dir" })
+	end, { nargs = "?", complete = "dir" })
 
 	-- Back-compat alias for old command name
 	pcall(vim.api.nvim_del_user_command, "OpengrepQf")
@@ -294,7 +424,7 @@ function M.setup(opts)
 			vim.notify("Deprecated: use :OGrep instead of :OpengrepQf", M.config.info_notify_level, { title = M.config.notify_title })
 		end)
 		M.run_and_qf(opts_.fargs)
-	end, { nargs = "+", complete = "dir" })
+	end, { nargs = "?", complete = "dir" })
 end
 
 -- Back-compat: initialize with defaults so it works out-of-the-box

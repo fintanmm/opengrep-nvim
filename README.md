@@ -5,7 +5,7 @@ A simple Neovim plugin that integrates the [Opengrep](https://www.opengrep.dev/)
 ## Features
 
 - **Automatic Checks on Save (async)**: Runs `opengrep` on the current file after you save it (non-blocking) and optionally notifies you if issues are found.
-- **Quickfix Integration**: `:OGrep` to run a manual search and populate the quickfix list with results. Accepts a required search pattern and optional directory.
+- **Quickfix Integration**: `:OGrep [directory]` runs an on-demand scan and populates the quickfix list with SARIF findings (defaults to the current working directory).
 - **Configurable**: Toggle run-on-save, patterns, notification verbosity, quickfix auto-open, binary path and extra args.
 
 ## Prerequisites
@@ -27,7 +27,7 @@ return {
     config = function()
       require('opengrep').setup({
         -- Optional configuration (shown with defaults):
-        cmd = 'opengrep',      -- name/path of opengrep binary (defaults to 'opengrep' on PATH)
+        cmd = 'opengrep',      -- name/path of opengrep binary (must be 'opengrep' on PATH by default)
         cmd_args = {},         -- extra args passed to every call
         run_on_save = true,    -- enable BufWritePost checks
         patterns = {           -- which files trigger run_on_save
@@ -44,7 +44,7 @@ return {
 }
 ```
 
-If you prefer zero-config, the plugin also initializes with sensible defaults on load.
+If you prefer zero-config, the plugin also initializes with sensible defaults on load. Add `cmd = { 'OGrep', 'OpengrepQf' }` in your `lazy.nvim` spec so commands are available before the plugin is loaded.
 
 ## Usage
 
@@ -52,22 +52,23 @@ If you prefer zero-config, the plugin also initializes with sensible defaults on
 
 When `run_on_save` is enabled, saving a file that matches one of the configured `patterns` runs `opengrep` asynchronously. By default, a notification appears only when issues are found. Enable `notify_on_no_issues` to also show a clean message.
 
-### Manual Quickfix Search
+### Manual Quickfix Scan
 
-Run a manual search and populate the quickfix list:
+Run a directory scan and populate the quickfix list:
 
 ```
-:OGrep {pattern} [directory]
+:OGrep [directory]
 ```
 
-- `{pattern}`: Required search pattern.
 - `[directory]`: Optional directory; defaults to the current working directory.
+
+The plugin runs `opengrep scan --quiet` and reads SARIF output to populate the quickfix list. Use `setup{ cmd_args = { ... } }` to pass additional flags such as `--include=PATTERN` or rules files.
 
 Examples:
 
 ```
-:OGrep "my_function"
-:OGrep TODO ~/my-project
+:OGrep
+:OGrep ~/my-project
 ```
 
 After the command runs, the quickfix list is populated and (by default) opened if there are results.
@@ -78,8 +79,8 @@ After the command runs, the quickfix list is populated and (by default) opened i
 ## Notes
 
 - All external calls execute asynchronously via `vim.system` on Neovim 0.10+, with a `jobstart` fallback otherwise.
-- Non-zero exit codes without stdout are treated as errors; empty stdout with zero exit code is treated as "no results".
-- Quickfix parsing handles `file:lnum:col:text` and falls back to a colon-split heuristic for resilience.
+- Scans run `opengrep scan --quiet` and write SARIF to a temp file; failures notify with stderr.
+- Quickfix parsing reads SARIF locations and maps to `filename`, `lnum`, `col`, and message (with `[ruleId]` when available).
 - If the `opengrep` binary is not found on PATH, a one-time notification explains how to install it or configure a custom `cmd` path (usually unnecessary).
 
 ## Versioning
